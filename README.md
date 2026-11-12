@@ -62,7 +62,7 @@
 
 # Android 4.19 quick start
 
-This branch is based on **v2.10.0** and adds an opt-in, capability-gated Android
+This branch originated from **v2.10.0**, is rebased onto upstream **master**, and adds an opt-in, capability-gated Android
 ARM64 profile for kernels **4.19–5.4 with the required eBPF backports**. It does
 not change the phone kernel, spoof its version, or disable SELinux. Validated:
 OnePlus 9R, LineageOS 24 / Android 17, kernel 4.19.325, SELinux Enforcing.

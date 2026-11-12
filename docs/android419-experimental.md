@@ -1,6 +1,9 @@
 # Experimental Android ARM64 backport profile
 
-Base: eCapture v2.10.0 (`eb363adcaeb094eb82c943f60297a2629d14420f`).
+Original implementation and phone validation base: eCapture v2.10.0
+(`eb363adcaeb094eb82c943f60297a2629d14420f`).
+Current upstream rebase target: master
+`f6c0df58575ca3027ef5baf74c4488c94a263169` (2026-11-12 fetch).
 This branch adapts the user-space tool, not the phone kernel. Stock upstream
 platform minimums remain the default. No uname spoofing is used.
 
@@ -13,6 +16,10 @@ kernels 4.19 through 5.4, and only for:
 - an explicit positive `--pid` and absolute `--libssl` path;
 - optional uint32 `--uid` (zero means no UID filter);
 - no HTTP config reload (`--listen`) or cgroup filtering.
+
+Upstream now prioritizes text/pcapng development. This fork retains the
+explicitly limited text/hook compatibility experiment; rebasing does not
+establish PCAP/keylog support on the target 4.19 kernel.
 
 The profile loads temporary, unpinned BPF maps/programs to check helper
 availability, tracing program type, required map types, JMP32, large programs,
@@ -57,7 +64,7 @@ make ANDROID=1 TARGET_ARCH=arm64 \
 
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath \
   -tags 'ecap_android,netgo,ebpfassets' \
-  -ldflags '-s -w -X github.com/gojue/ecapture/v2/cli/cmd.GitVersion=android419-experimental-v2.10.0-text-threadfix -X github.com/gojue/ecapture/v2/internal/config.ByteCodeFiles=noncore' \
+  -ldflags '-s -w -X github.com/gojue/ecapture/v2/cli/cmd.GitVersion=android419-experimental-master-f6c0df5 -X github.com/gojue/ecapture/v2/internal/config.ByteCodeFiles=noncore' \
   -o "$inputs/ecapture" ./
 ```
 
@@ -83,7 +90,7 @@ headers. This profile does not provide an automatic target-lifetime watcher.
 
 ## Verification and remaining limitations
 
-Verified on one OnePlus 9R running Android 17 / LineageOS 24, kernel
+The original v2.10.0-based adaptation was verified on one OnePlus 9R running Android 17 / LineageOS 24, kernel
 `4.19.325-cip136-st20-perf-g078365e5318d`, with SELinux Enforcing:
 
 - 18 load-only capability checks passed; no kernel/BTF/SELinux changes.
@@ -94,6 +101,13 @@ Verified on one OnePlus 9R running Android 17 / LineageOS 24, kernel
   plaintext; a second PID was excluded and a mismatched UID produced no events.
 - A user-selected app produced TLS events from six worker threads, all with
   the selected TGID. Shutdown was graceful. No app data is included here.
+
+The master rebase does not update the installed phone binary. Its host-side
+tests/builds must not be presented as a new on-device capture validation.
+After rebasing onto `f6c0df5`, targeted race tests passed for the CLI/config,
+TLS/GoTLS/GnuTLS probes, base handlers, output pipeline, eCaptureQ and kernel
+helpers. Both Android 17 BPF variants and the ARM64 diagnostic binary were
+rebuilt successfully; the rebased binary has not been tested on the phone.
 
 The full default-tag race run was not green: MySQL tests require an unavailable
 `/usr/sbin/mysqld`, and the upgrade API test timed out. Production-tag lint and

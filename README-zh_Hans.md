@@ -66,7 +66,7 @@
 
 # Android 4.19 快速上手
 
-本分支基于 **v2.10.0**，为**具备所需 eBPF 回移植能力的 Android ARM64 4.19–5.4 内核**
+本分支起始于 **v2.10.0**，现已 rebase 到上游 **master**，为**具备所需 eBPF 回移植能力的 Android ARM64 4.19–5.4 内核**
 增加显式启用、能力检测通过后才运行的实验模式。不更换手机内核、不伪装版本、不关闭 SELinux。
 已验证环境：OnePlus 9R、LineageOS 24 / Android 17、4.19.325 内核、SELinux Enforcing。
 
