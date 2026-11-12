@@ -33,6 +33,9 @@
 </p>
 
 > [!IMPORTANT]
+> **使用本 Fork 的 `kernel-4.19` 分支？** 请先阅读 [Android 4.19 快速上手](#android-419-快速上手)。
+> 实验适配必须使用 `--experimental-android419`；上方链接的上游 Release **不包含**这份适配。
+> 以下是上游默认要求，不代表任意 4.19 内核都能运行本适配版。
 > Linux 支持 x86_64（内核 4.18+）、aarch64（内核 5.5+）和 LoongArch64 `loong64`（内核 6.6+）。Android 继续支持 x86_64 和 aarch64，且最低内核要求不变。
 > 需要 root 权限或特定的 [Linux capabilities](docs/minimum-privileges.md)。
 > 不支持 Windows 和 macOS。
@@ -40,6 +43,7 @@
 ----
 
 <!-- MarkdownTOC autolink="true" -->
+- [Android 4.19 快速上手](#android-419-快速上手)
 - [简介](#简介)
 - [快速上手](#快速上手)
   - [下载](#下载)
@@ -59,6 +63,65 @@
 <!-- /MarkdownTOC -->
 
 ----
+
+# Android 4.19 快速上手
+
+本分支基于 **v2.10.0**，为**具备所需 eBPF 回移植能力的 Android ARM64 4.19–5.4 内核**
+增加显式启用、能力检测通过后才运行的实验模式。不更换手机内核、不伪装版本、不关闭 SELinux。
+已验证环境：OnePlus 9R、LineageOS 24 / Android 17、4.19.325 内核、SELinux Enforcing。
+
+请按[匹配内核头文件的构建步骤与验证记录](docs/android419-experimental.md)**编译本分支**。
+已测试的诊断二进制仅包含 **Android 17 BoringSSL non-CO-RE** 字节码，
+不是上游官方二进制，也不是全功能发行版。
+
+## 附加到 App
+
+在 root shell 中执行（先 `adb shell`，如果尚未获得 root，再执行 `su`）。
+先核对 App 当前的 PID、UID 和实际加载的 `libssl.so`；App 重启后 PID 会改变，
+App 自带 TLS 库也可能需要其他匹配字节码。
+以下 PID/UID 是示例，请替换 `TARGET_PID`、`APP_UID`，并确认二进制和库路径正确。
+
+```sh
+TARGET_PID=12345
+APP_UID=10123
+ECAPTURE=/data/local/tmp/ecapture-9r-check/ecapture
+CAPTURE_DIR=/data/local/tmp/ecapture-logs/$(date +%Y%m%d-%H%M%S)
+umask 077
+mkdir -p "$CAPTURE_DIR"
+
+"$ECAPTURE" tls \
+  --experimental-android419 \
+  --btf=2 \
+  --pid="$TARGET_PID" \
+  --uid="$APP_UID" \
+  --libssl=/apex/com.android.conscrypt/lib64/libssl.so \
+  --ssl_version=boringssl_a_17 \
+  -m text \
+  --text-source=hook \
+  --mapsize=64 \
+  --eventaddr="$CAPTURE_DIR/events.txt"
+```
+
+在 App 内触发请求，完成后按 **Ctrl+C** 停止。TLS 请求/响应数据保存在 `events.txt`，
+启动信息和运行日志显示在控制台。在电脑端拉取采集目录：
+
+```sh
+adb pull /data/local/tmp/ecapture-logs ./ecapture-logs
+```
+
+- **仍提示需要 5.5 内核？** 检查 `ecapture --version` 和 `ecapture tls --help`。
+  适配版应包含 `--experimental-android419`，而且启动时必须显式加上；
+  即使文件名叫 `ecapture-threadfix` 也一样。仅加 `--btf=2` 不会启用兼容模式。
+- **能力预检失败？** 保留完整错误。这不是无条件跳过版本检查，运行内核的
+  BPF 能力与加载权限必须通过检测。
+- **没有数据？** 重新核对 PID/UID 和实际映射的库。已修复现有网络工作线程的覆盖，
+  并在读取 payload 前执行 TGID/UID 过滤；但不代表自动支持所有 App 私有或静态链接的 TLS 库。
+- **当前范围：** 仅 TLS text/hook、显式 PID 和库路径、non-CO-RE。
+  实验模式不开放 PCAP、keylog、GoTLS、HTTP 配置热更新和 cgroup 过滤，
+  连接元数据也可能缺失。目标进程退出后请停止采集，目前没有自动生命周期监控。
+- 日志可能包含 token 等隐私数据，不要提交到 Git 或公开问题报告。
+
+下方保留的上游通用文档也介绍了实验模式以外的功能，不代表本分支已验证这些功能。
 
 # 简介
 

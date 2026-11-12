@@ -32,6 +32,9 @@
 </p>
 
 > [!IMPORTANT]
+> **Using this fork's `kernel-4.19` branch?** Start with [Android 4.19 quick start](#android-419-quick-start).
+> Its experimental profile requires `--experimental-android419`; the upstream releases linked above do **not** include this adaptation.
+> The following are the default upstream requirements, not a claim that every 4.19 kernel is supported.
 > Supports Linux on x86_64 (kernel 4.18+), aarch64 (kernel **5.5+**), and LoongArch64 `loong64` (kernel **6.6+**). Android supports x86_64 and aarch64 with the existing kernel minimums.
 > Requires root privileges or specific [Linux capabilities](docs/minimum-privileges.md).
 > Does not support Windows or macOS.
@@ -39,6 +42,7 @@
 ----
 
 <!-- MarkdownTOC autolink="true" -->
+- [Android 4.19 quick start](#android-419-quick-start)
 - [Introduction](#introduction)
 - [Getting started](#getting-started)
   - [Download](#download)
@@ -55,6 +59,74 @@
 - [Contributing](#contributing)
 - [Compilation](#compilation)
 <!-- /MarkdownTOC -->
+
+# Android 4.19 quick start
+
+This branch is based on **v2.10.0** and adds an opt-in, capability-gated Android
+ARM64 profile for kernels **4.19–5.4 with the required eBPF backports**. It does
+not change the phone kernel, spoof its version, or disable SELinux. Validated:
+OnePlus 9R, LineageOS 24 / Android 17, kernel 4.19.325, SELinux Enforcing.
+
+**Build this branch**, following the [exact-header build instructions and verification notes](docs/android419-experimental.md).
+The tested diagnostic binary contains only the **Android 17 BoringSSL non-CO-RE**
+asset. It is not the upstream release binary or a full-featured release.
+
+## Attach to an app
+
+Use a root shell (`adb shell`, then `su` if the shell is not already root).
+Check the current app PID, UID, and mapped `libssl.so` first; an app restart
+changes its PID, and bundled TLS libraries may require different assets.
+The values below are examples: replace `TARGET_PID` and `APP_UID` and use the
+actual executable/library paths on your device.
+
+```sh
+TARGET_PID=12345
+APP_UID=10123
+ECAPTURE=/data/local/tmp/ecapture-9r-check/ecapture
+CAPTURE_DIR=/data/local/tmp/ecapture-logs/$(date +%Y%m%d-%H%M%S)
+umask 077
+mkdir -p "$CAPTURE_DIR"
+
+"$ECAPTURE" tls \
+  --experimental-android419 \
+  --btf=2 \
+  --pid="$TARGET_PID" \
+  --uid="$APP_UID" \
+  --libssl=/apex/com.android.conscrypt/lib64/libssl.so \
+  --ssl_version=boringssl_a_17 \
+  -m text \
+  --text-source=hook \
+  --mapsize=64 \
+  --eventaddr="$CAPTURE_DIR/events.txt"
+```
+
+Trigger a request in the app, then press **Ctrl+C** to stop. TLS request/response
+data goes to `events.txt`; startup and operational messages remain on the
+console. From the host, retrieve the capture directory with:
+
+```sh
+adb pull /data/local/tmp/ecapture-logs ./ecapture-logs
+```
+
+- **Still reports kernel 5.5 required?** Check `ecapture --version` and
+  `ecapture tls --help`. The adapted build exposes `--experimental-android419`;
+  that flag is mandatory, including for binaries named `ecapture-threadfix`.
+  `--btf=2` alone does not enable the compatibility profile.
+- **Capability preflight fails?** Keep the complete error. This is not an
+  unconditional version-check bypass; loading permissions and required BPF
+  features must pass on the running kernel.
+- **No events?** Recheck PID/UID and the mapped library. The profile handles
+  existing worker threads and filters TGID/UID before payload reads, but it
+  cannot automatically adapt every app's private or statically linked TLS stack.
+- **Current scope:** TLS text/hook only, explicit PID and library path,
+  non-CO-RE. No PCAP/keylog/GoTLS, HTTP config reload, or cgroup filtering in
+  this experimental profile. Connection metadata may be absent. Stop capture
+  when the target exits; there is no automatic target-lifetime watcher.
+- Captures can contain tokens and other private data. Keep them out of Git
+  commits and public issue reports.
+
+The general upstream documentation below describes capabilities outside this
+experimental profile as well; it does not expand the profile's tested scope.
 
 # Introduction
 
