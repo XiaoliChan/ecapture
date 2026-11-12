@@ -16,6 +16,10 @@ Current build facts come from `go.mod`, `Makefile`, `variables.mk`,
   read-only checks. Do not invoke Makefile targets there.
 - Runtime targets are Linux/Android x86_64 kernel >= 4.18 and aarch64 kernel
   >= 5.5, plus Linux LoongArch64 kernel >= 6.6. Android/loong64 is unsupported.
+- The fork's opt-in Android ARM64 backport experiment is documented in
+  `../android419-experimental.md`. Its load-only preflight and targeted TLS
+  tests do not replace the maintained full E2E matrix or change build-host
+  requirements. The diagnostic pure-Go artifact is not a production release.
 - Probe execution needs root or documented capabilities. The maintained E2E
   shell harness explicitly requires EUID 0, so capabilities alone do not
   satisfy it.

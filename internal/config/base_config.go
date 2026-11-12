@@ -219,6 +219,9 @@ func (c *BaseConfig) GetByteCodeFileMode() uint8 {
 
 // EnableGlobalVar checks if the kernel supports global variables.
 func (c *BaseConfig) EnableGlobalVar() bool {
+	if kernel.BackportedGlobalsEnabled() {
+		return true
+	}
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return true

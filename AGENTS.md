@@ -60,6 +60,10 @@ built on a Linux host.
 - Runtime targets: Linux on `x86_64`, `aarch64`, or `loongarch64`; Android on
   `x86_64` or `aarch64`.
 - Minimum kernels: x86_64 >= 4.18; aarch64 >= 5.5; Linux loongarch64 >= 6.6.
+- This fork has an explicit, capability-gated Android ARM64 4.19..5.4
+  experimental profile. It does not lower default or build-host minimums.
+  Its TLS text-only scope and verification limits are documented in
+  `docs/android419-experimental.md`; do not advertise general 4.19 support.
 - Loading probes requires root or the capabilities documented in
   `docs/minimum-privileges.md`. Maintained E2E harnesses have stricter root
   requirements.

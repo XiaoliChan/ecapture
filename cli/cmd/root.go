@@ -104,6 +104,11 @@ docker run --rm --privileged=true --net=host -v ${HOST_PATH}:${CONTAINER_PATH} g
 	// Run: func(cmd *cobra.Command, args []string) { },
 
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if experimentalAndroid419 {
+			if err := validateAndroid419Request(cmd.Name()); err != nil {
+				return err
+			}
+		}
 		if err := detectEnv(); err != nil {
 			return err
 		}
@@ -133,6 +138,7 @@ func Execute() {
 
 func init() {
 	cobra.EnablePrefixMatching = true
+	rootCmd.PersistentFlags().BoolVar(&experimentalAndroid419, "experimental-android419", false, "experimental backported Android arm64 BPF; requires TLS text/hook, --btf=2, explicit --pid and --libssl; no reload")
 	if embeddedMode, err := config.EmbeddedByteCodeFileMode(); err == nil {
 		globalConf.ByteCodeFileMode = embeddedMode
 	}

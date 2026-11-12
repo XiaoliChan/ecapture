@@ -18,10 +18,13 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/cilium/ebpf/rlimit"
 	"golang.org/x/sys/unix"
 
 	"github.com/gojue/ecapture/v2/pkg/util/kernel"
 )
+
+var experimentalAndroid419 bool
 
 func detectKernel() error {
 	// 系统内核版本检测
@@ -29,9 +32,27 @@ func detectKernel() error {
 	if err != nil {
 		return fmt.Errorf("failed to get the host kernel version: %w", err)
 	}
-	minimum, displayArch, err := minimumKernelVersion(runtime.GOARCH)
+	return detectKernelProfile(runtime.GOARCH, kv, experimentalAndroid419, android419Build, func() error {
+		if err := rlimit.RemoveMemlock(); err != nil {
+			return fmt.Errorf("process memlock: %w", err)
+		}
+		return kernel.EnableBackportedGlobals()
+	})
+}
+
+func detectKernelProfile(arch string, kv kernel.Version, experimental, androidBuild bool, probe func() error) error {
+	minimum, displayArch, err := minimumKernelVersion(arch)
 	if err != nil {
 		return err
+	}
+	if experimental {
+		if !androidBuild || arch != "arm64" || kv < kernel.VersionCode(4, 19, 0) || kv >= minimum {
+			return fmt.Errorf("experimental Android backport profile requires an Android arm64 build and kernel 4.19..5.4")
+		}
+		if err := probe(); err != nil {
+			return fmt.Errorf("experimental Android BPF preflight failed: %w", err)
+		}
+		return nil
 	}
 	if kv < minimum {
 		return fmt.Errorf("the Linux/Android kernel version %v (%s) is not supported; require %v or newer", kv, displayArch, minimum)
@@ -74,11 +95,11 @@ func detectBpfCap() error {
 func detectEnv() error {
 	// 环境检测
 
-	if err := detectKernel(); err != nil {
+	if err := detectBpfCap(); err != nil {
 		return err
 	}
 
-	if err := detectBpfCap(); err != nil {
+	if err := detectKernel(); err != nil {
 		return err
 	}
 

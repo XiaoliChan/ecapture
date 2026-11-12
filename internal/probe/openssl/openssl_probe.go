@@ -355,11 +355,30 @@ func (p *Probe) setupManagerText() error {
 		},
 	}
 
+	if kernel.BackportedGlobalsEnabled() {
+		// perf_event PID attachment only covers that thread, not the existing
+		// network workers of an Android app. Use TGID/UID filtering inside the
+		// four data probes BEFORE any userspace reads, with verified globals.
+		// Exclude connection tracking and unfiltered SSL_set_fd probes.
+		probes = android419TextProbes(probes)
+	}
 	p.bpfManager = &manager.Manager{
 		Probes: probes,
 		Maps:   maps,
 	}
 	return nil
+}
+
+func android419TextProbes(probes []*manager.Probe) []*manager.Probe {
+	var scoped []*manager.Probe
+	for _, probe := range probes {
+		switch probe.EbpfFuncName {
+		case "probe_entry_SSL_read", "probe_ret_SSL_read", "probe_entry_SSL_write", "probe_ret_SSL_write":
+			probe.AttachPID = 0
+			scoped = append(scoped, probe)
+		}
+	}
+	return scoped
 }
 
 func (p *Probe) setupManagerPcapNG() error {
@@ -685,11 +704,9 @@ func (p *Probe) getManagerOptions() manager.Options {
 
 	// Add constant editors if kernel supports global variables
 	if p.config.EnableGlobalVar() {
-		kv, _ := kernel.HostVersion()
+		// EnableGlobalVar also recognizes the explicitly probed Android
+		// backport. Rechecking uname here would silently disable PID/UID filters.
 		kernelLess52 := uint64(0)
-		if kv < kernel.VersionCode(5, 2, 0) {
-			kernelLess52 = 1
-		}
 
 		var cgroupId uint64
 		if p.config.GetCGroupPath() != "" {

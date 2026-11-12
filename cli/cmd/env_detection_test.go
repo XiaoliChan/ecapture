@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+	"syscall"
 	"testing"
 
 	"github.com/gojue/ecapture/v2/pkg/util/kernel"
@@ -29,5 +31,33 @@ func TestMinimumKernelVersion(t *testing.T) {
 	}
 	if _, _, err := minimumKernelVersion("mips64"); err == nil {
 		t.Fatal("unsupported architecture did not return an error")
+	}
+}
+
+func TestExperimentalKernelProfile(t *testing.T) {
+	for _, tt := range []struct {
+		name, arch                               string
+		v                                        kernel.Version
+		experimental, android, wantProbe, wantOK bool
+	}{
+		{"default-rejects-419", "arm64", kernel.VersionCode(4, 19, 255), false, true, false, false},
+		{"default-accepts-55", "arm64", kernel.VersionCode(5, 5, 0), false, true, false, true},
+		{"opt-in-419", "arm64", kernel.VersionCode(4, 19, 255), true, true, true, true},
+		{"too-old", "arm64", kernel.VersionCode(4, 18, 0), true, true, false, false},
+		{"not-android", "arm64", kernel.VersionCode(4, 19, 0), true, false, false, false},
+		{"wrong-arch", "amd64", kernel.VersionCode(4, 19, 0), true, true, false, false},
+		{"unnecessary-profile", "arm64", kernel.VersionCode(5, 5, 0), true, true, false, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			err := detectKernelProfile(tt.arch, tt.v, tt.experimental, tt.android, func() error { called = true; return nil })
+			if (err == nil) != tt.wantOK || called != tt.wantProbe {
+				t.Fatalf("err=%v probe=%v", err, called)
+			}
+		})
+	}
+	err := detectKernelProfile("arm64", kernel.VersionCode(4, 19, 0), true, true, func() error { return syscall.EPERM })
+	if !errors.Is(err, syscall.EPERM) {
+		t.Fatalf("preflight failure not preserved: %v", err)
 	}
 }
